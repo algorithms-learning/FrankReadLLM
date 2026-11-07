@@ -1,0 +1,1849 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Франк · Читалка</title>
+<style>
+:root {
+  --bg: #141414; --panel: #1c1c1c; --panel-2: #232323; --border: #2c2c2c;
+  --text: #d8d8d8; --muted: #8a8a8a;
+  --accent: #d6a85c; --accent-dim: #a07d3f;
+  --translation: #9bb0a6; --error: #b85c5c;
+  --user-bubble: #2d3238; --asst-bubble: #1f2226;
+  --radius: 10px;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { height: 100%; }
+body {
+  background: var(--bg); color: var(--text);
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  line-height: 1.6; transition: padding-right .2s; overflow: hidden;
+}
+body.chat-open { padding-right: 420px; }
+header {
+  display: flex; align-items: center; gap: 16px;
+  padding: 14px 24px; border-bottom: 1px solid var(--border);
+  background: rgba(20,20,20,0.98); z-index: 10; flex-shrink: 0;
+}
+header h1 { font-size: 16px; font-weight: 600; color: var(--accent); margin-right: auto; }
+header h1 span { color: var(--muted); font-weight: 400; }
+header .model-tag {
+  font-size: 12px; color: var(--muted);
+  padding: 4px 10px; border: 1px solid var(--border); border-radius: 999px;
+}
+.btn {
+  background: var(--panel-2); color: var(--text);
+  border: 1px solid var(--border); border-radius: var(--radius);
+  padding: 8px 16px; font-size: 14px; cursor: pointer;
+  transition: background .15s, border-color .15s; font-family: inherit;
+}
+.btn:hover:not(:disabled) { background: #2a2a2a; border-color: #3a3a3a; }
+.btn:disabled { opacity: .4; cursor: not-allowed; }
+.btn-accent {
+  background: var(--accent); color: #1a1a1a;
+  border-color: var(--accent); font-weight: 600;
+}
+.btn-accent:hover:not(:disabled) { background: #e0b468; border-color: #e0b468; }
+.btn-small { padding: 4px 10px; font-size: 12px; }
+.btn-icon { padding: 6px 10px; font-size: 14px; line-height: 1; }
+.btn-danger { color: var(--error); border-color: var(--error); }
+.btn-danger:hover:not(:disabled) { background: rgba(184,92,92,0.15); }
+
+#app { height: calc(100vh - 53px); display: flex; flex-direction: column; overflow: hidden; }
+.view { display: none; flex: 1; overflow: hidden; }
+.view.active { display: flex; flex-direction: column; }
+
+#upload-view { overflow-y: auto; }
+#upload-view.active { display: block; }
+.upload-wrap { max-width: 560px; margin: 8vh auto; padding: 0 24px; }
+.upload-card { background: var(--panel); border: 1px solid var(--border); border-radius: 16px; padding: 32px; }
+#dropzone {
+  border: 2px dashed var(--border); border-radius: var(--radius);
+  padding: 48px 24px; text-align: center; cursor: pointer;
+  transition: border-color .15s, background .15s;
+}
+#dropzone:hover, #dropzone.dragover { border-color: var(--accent-dim); background: #1a1a1a; }
+#dropzone .icon { font-size: 32px; margin-bottom: 12px; opacity: .7; }
+#dropzone p { color: var(--muted); font-size: 14px; }
+#dropzone p strong { color: var(--text); font-weight: 500; }
+#file-name { margin-top: 16px; font-size: 14px; color: var(--accent); min-height: 20px; word-break: break-all; }
+.upload-actions { margin-top: 24px; display: flex; justify-content: flex-end; gap: 10px; }
+.recent { margin-top: 28px; border-top: 1px solid var(--border); padding-top: 20px; }
+.recent h3 { font-size: 13px; color: var(--muted); font-weight: 500; text-transform: uppercase; letter-spacing: .08em; margin-bottom: 12px; }
+.recent-item {
+  display: flex; align-items: center; gap: 12px;
+  padding: 10px 12px; border-radius: var(--radius);
+  cursor: pointer; transition: background .15s;
+}
+.recent-item:hover { background: var(--panel-2); }
+.recent-item .rtitle { flex: 1; font-size: 14px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.recent-item .rprogress { font-size: 12px; color: var(--muted); }
+
+#reader-view { display: none; flex-direction: column; overflow: hidden; }
+#reader-view.active { display: flex; }
+.reader-toolbar {
+  display: flex; align-items: center; gap: 8px;
+  padding: 10px 24px; border-bottom: 1px solid var(--border);
+  background: var(--panel); flex-wrap: wrap; flex-shrink: 0;
+}
+.book-title {
+  font-size: 14px; color: var(--muted);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  max-width: 18%;
+}
+.model-select {
+  background: var(--bg); color: var(--text);
+  border: 1px solid var(--border); border-radius: var(--radius);
+  padding: 6px 8px; font-size: 12px; font-family: inherit;
+  outline: none; max-width: 180px; cursor: pointer;
+}
+.model-select:focus { border-color: var(--accent-dim); }
+.model-select:disabled { opacity: .55; cursor: not-allowed; }
+.version-badge {
+  display: inline-flex; align-items: center; gap: 6px;
+  font-size: 12px; color: var(--muted);
+  padding: 4px 10px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  cursor: pointer;
+  transition: border-color .15s;
+  white-space: nowrap;
+}
+.version-badge:hover { border-color: var(--accent-dim); color: var(--text); }
+.version-badge .vb-count { color: var(--accent); font-weight: 600; }
+.version-badge .vb-multi {
+  color: var(--text);
+  font-size: 11px;
+  padding: 1px 6px;
+  background: var(--panel-2);
+  border-radius: 999px;
+}
+#translate-btn { font-size: 13px; padding: 6px 12px; white-space: nowrap; }
+#translate-btn .loader { width: 12px; height: 12px; margin-right: 4px; }
+.progress-inline {
+  display: inline-flex; align-items: center; gap: 8px;
+  font-size: 12px; color: var(--muted);
+  padding: 4px 10px; background: var(--bg);
+  border: 1px solid var(--border); border-radius: 999px;
+}
+.progress-inline-bar { width: 60px; height: 4px; background: #333; border-radius: 2px; overflow: hidden; }
+.progress-inline-fill { height: 100%; background: var(--accent); width: 0; transition: width .3s; }
+.page-nav { margin-left: auto; display: inline-flex; align-items: center; gap: 6px; }
+.page-nav-btn {
+  background: var(--panel-2); color: var(--text);
+  border: 1px solid var(--border); border-radius: var(--radius);
+  width: 32px; height: 32px; cursor: pointer;
+  font-size: 16px; line-height: 1;
+  display: flex; align-items: center; justify-content: center;
+  transition: background .15s, color .15s; font-family: inherit;
+}
+.page-nav-btn:hover:not(:disabled) { background: var(--accent); color: #1a1a1a; border-color: var(--accent); }
+.page-nav-btn:disabled { opacity: .3; cursor: not-allowed; }
+.page-nav-input {
+  width: 52px; background: var(--bg);
+  border: 1px solid var(--border); border-radius: 6px;
+  padding: 6px 8px; color: var(--text);
+  font-size: 13px; text-align: center;
+  font-variant-numeric: tabular-nums; font-family: inherit; outline: none;
+  appearance: textfield; -moz-appearance: textfield;
+}
+.page-nav-input::-webkit-outer-spin-button,
+.page-nav-input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+.page-nav-input:focus { border-color: var(--accent-dim); }
+.page-nav-total { font-size: 13px; color: var(--muted); font-variant-numeric: tabular-nums; min-width: 36px; }
+.mode-switch {
+  display: inline-flex; background: var(--bg);
+  border: 1px solid var(--border); border-radius: var(--radius);
+  padding: 3px; gap: 2px; flex-wrap: wrap;
+}
+.mode-btn {
+  background: transparent; color: var(--muted); border: none;
+  padding: 6px 10px; font-size: 12px;
+  border-radius: calc(var(--radius) - 3px); cursor: pointer;
+  transition: background .15s, color .15s; font-family: inherit; white-space: nowrap;
+}
+.mode-btn:hover { color: var(--text); }
+.mode-btn.active { background: var(--panel-2); color: var(--accent); font-weight: 500; }
+#vocab-toggle { position: relative; padding: 6px 10px; }
+#vocab-badge {
+  display: inline-block; background: var(--accent); color: #1a1a1a;
+  font-size: 11px; font-weight: 700;
+  padding: 1px 6px; border-radius: 999px; margin-left: 4px;
+}
+#vocab-badge.zero { background: var(--panel-2); color: var(--muted); }
+.reader-banner {
+  margin: 16px 24px 0; padding: 12px 20px;
+  background: var(--panel); border: 1px solid var(--border);
+  border-radius: var(--radius); font-size: 14px; color: var(--muted);
+  display: flex; align-items: center; gap: 12px; flex-shrink: 0;
+}
+#reader-scroll { flex: 1; overflow-y: auto; overflow-x: hidden; }
+#reader { max-width: 68ch; margin: 0 auto; padding: 32px 24px; }
+.paragraph { margin-bottom: 40px; position: relative; }
+.para-study .original, .para-clean .original {
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: 19px; line-height: 1.7; color: var(--text);
+}
+.para-study .translation {
+  margin-top: 12px; padding-left: 16px;
+  border-left: 2px solid var(--border);
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: 16px; line-height: 1.6; color: var(--translation);
+}
+.para-study .translation.pending-text {
+  color: var(--muted); font-style: italic;
+  border-left-color: transparent;
+  display: flex; align-items: center; gap: 4px;
+}
+.para-study .comment {
+  margin-top: 12px; font-size: 13px; line-height: 1.5;
+  color: var(--muted); background: var(--panel);
+  border: 1px solid var(--border); border-radius: var(--radius); padding: 10px 14px;
+}
+.paragraph.pending .para-study .original,
+.paragraph.pending .para-clean .original { opacity: 0.55; }
+.para-model {
+  margin-top: 8px; font-size: 11px; color: var(--muted); opacity: 0.6;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+}
+.para-inline {
+  display: none; font-family: Georgia, "Times New Roman", serif;
+  font-size: 18px; line-height: 1.9; color: var(--text);
+}
+.para-inline .inline-original { color: var(--text); }
+.para-inline .inline-translation { color: var(--translation); font-style: italic; }
+.para-inline .inline-note {
+  display: block; margin-top: 12px;
+  font-size: 12px; color: var(--muted); font-style: normal;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+}
+body[data-mode="study"] .para-clean { display: none; }
+body[data-mode="study"] .para-study { display: block; }
+body[data-mode="study"] .para-inline { display: none; }
+body[data-mode="check"] .para-study { display: none; }
+body[data-mode="check"] .para-clean { display: block; }
+body[data-mode="check"] .para-inline { display: none; }
+body[data-mode="double"] .para-study { display: block; }
+body[data-mode="double"] .para-clean { display: block; }
+body[data-mode="double"] .para-inline { display: none; }
+body[data-mode="double"] .para-clean {
+  margin-top: 20px; padding: 16px 20px;
+  background: var(--panel); border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+body[data-mode="double"] .para-clean::before {
+  content: "↓ оригинал"; display: block;
+  font-size: 10px; text-transform: uppercase; letter-spacing: .1em;
+  color: var(--muted); margin-bottom: 8px;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+}
+body[data-mode="inline"] .para-study { display: none; }
+body[data-mode="inline"] .para-clean { display: none; }
+body[data-mode="inline"] .para-inline { display: block; }
+.ask-btn {
+  position: absolute; top: -8px; right: -40px;
+  background: var(--panel-2); color: var(--muted);
+  border: 1px solid var(--border); border-radius: 50%;
+  width: 30px; height: 30px; cursor: pointer;
+  font-size: 13px; opacity: 0; transition: opacity .15s;
+  display: flex; align-items: center; justify-content: center;
+}
+.paragraph:hover .ask-btn { opacity: 1; }
+.ask-btn:hover { color: var(--accent); border-color: var(--accent-dim); }
+.error-block {
+  margin-top: 12px; padding: 12px;
+  background: rgba(184, 92, 92, 0.1);
+  border: 1px solid var(--error); border-radius: var(--radius);
+  font-size: 13px; color: var(--error);
+  display: flex; align-items: center; gap: 12px; justify-content: space-between;
+}
+.loader {
+  display: inline-block; width: 14px; height: 14px;
+  border: 2px solid #444; border-top-color: var(--accent);
+  border-radius: 50%; animation: spin .7s linear infinite;
+  vertical-align: middle; margin-right: 8px;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+#floating-actions {
+  position: fixed; display: none; gap: 6px; z-index: 100;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.5); border-radius: 20px;
+}
+#floating-actions.visible { display: inline-flex; }
+.fa-btn {
+  border: none; border-radius: 20px; padding: 8px 14px;
+  font-size: 13px; font-weight: 600; cursor: pointer; font-family: inherit;
+  white-space: nowrap; transition: transform .1s, background .15s; color: #1a1a1a;
+}
+.fa-btn:hover { transform: translateY(-1px); }
+.fa-explain { background: var(--accent); }
+.fa-explain:hover { background: #e0b468; }
+.fa-vocab { background: var(--translation); }
+.fa-vocab:hover { background: #b0c4b8; }
+#chat-panel {
+  position: fixed; top: 53px; right: 0;
+  width: 420px; height: calc(100vh - 53px);
+  background: var(--panel); border-left: 1px solid var(--border);
+  display: flex; flex-direction: column;
+  transform: translateX(100%); transition: transform .2s ease; z-index: 20;
+}
+body.chat-open #chat-panel { transform: translateX(0); }
+.chat-header {
+  display: flex; align-items: center; gap: 8px;
+  padding: 14px 16px; border-bottom: 1px solid var(--border);
+}
+.chat-header .chat-title { font-size: 14px; font-weight: 600; color: var(--accent); margin-right: auto; }
+.chat-context {
+  padding: 8px 16px; font-size: 12px; color: var(--muted);
+  border-bottom: 1px solid var(--border); background: var(--bg);
+}
+.chat-context strong { color: var(--text); font-weight: 500; }
+.chat-messages {
+  flex: 1; overflow-y: auto; padding: 16px;
+  display: flex; flex-direction: column; gap: 12px;
+}
+.chat-empty { color: var(--muted); font-size: 13px; text-align: center; padding: 40px 20px; }
+.chat-msg {
+  padding: 10px 14px; border-radius: 12px;
+  font-size: 14px; line-height: 1.55;
+  max-width: 90%; word-wrap: break-word; white-space: pre-wrap;
+}
+.chat-msg.user { background: var(--user-bubble); align-self: flex-end; border-bottom-right-radius: 4px; }
+.chat-msg.assistant {
+  background: var(--asst-bubble); align-self: flex-start;
+  border-bottom-left-radius: 4px; border: 1px solid var(--border);
+}
+.chat-msg.assistant.thinking::after { content: "▊"; animation: blink 1s infinite; color: var(--accent); }
+.chat-msg .chat-stopped {
+  display: block; margin-top: 8px;
+  font-size: 11px; color: var(--muted); font-style: italic;
+}
+@keyframes blink { 50% { opacity: 0; } }
+.chat-input-wrap {
+  border-top: 1px solid var(--border); padding: 12px;
+  display: flex; gap: 8px;
+}
+#chat-input {
+  flex: 1; background: var(--bg); color: var(--text);
+  border: 1px solid var(--border); border-radius: var(--radius);
+  padding: 10px 12px; font-size: 14px; font-family: inherit;
+  resize: none; min-height: 44px; max-height: 140px; outline: none;
+}
+#chat-input:focus { border-color: var(--accent-dim); }
+#chat-send {
+  background: var(--accent); color: #1a1a1a;
+  border: none; border-radius: var(--radius);
+  padding: 0 16px; font-weight: 600; cursor: pointer;
+  font-family: inherit; font-size: 16px; line-height: 1;
+  min-width: 48px; transition: background .15s;
+}
+#chat-send:disabled { opacity: .4; cursor: not-allowed; }
+#chat-send.stop { background: var(--error); color: #fff; }
+.modal-overlay {
+  position: fixed; inset: 0; background: rgba(0,0,0,0.75);
+  z-index: 150; display: none; align-items: center; justify-content: center; padding: 20px;
+}
+.modal-overlay.visible { display: flex; }
+.modal-box {
+  background: var(--panel); border: 1px solid var(--border);
+  border-radius: 16px; max-width: 600px; width: 100%;
+  max-height: 85vh; display: flex; flex-direction: column; overflow: hidden;
+}
+.modal-head {
+  padding: 16px 20px; border-bottom: 1px solid var(--border);
+  display: flex; align-items: center; gap: 12px;
+}
+.modal-head h2 { font-size: 16px; color: var(--accent); font-weight: 600; }
+.modal-head .mh-count { font-size: 13px; color: var(--muted); }
+.modal-head .mh-close { margin-left: auto; }
+.modal-body { padding: 16px 20px; overflow-y: auto; flex: 1; }
+.modal-empty {
+  color: var(--muted); font-size: 14px; text-align: center; padding: 40px 20px;
+}
+.vocab-item {
+  display: flex; align-items: center; gap: 8px;
+  padding: 8px 12px; border-radius: 8px; font-size: 14px;
+  background: var(--bg); border: 1px solid var(--border); margin-bottom: 6px;
+}
+.vocab-item .vi-word {
+  flex: 1; font-family: Georgia, "Times New Roman", serif; word-break: break-word;
+}
+.vocab-item .vi-remove {
+  background: none; border: none; color: var(--muted); cursor: pointer;
+  font-size: 16px; line-height: 1; padding: 2px 6px; border-radius: 4px;
+}
+.vocab-item .vi-remove:hover { color: var(--error); background: rgba(184,92,92,0.15); }
+.modal-foot {
+  padding: 12px 20px; border-top: 1px solid var(--border);
+  display: flex; gap: 8px; align-items: center; flex-wrap: wrap;
+}
+.modal-foot input[type="text"] {
+  flex: 1; min-width: 120px;
+  background: var(--bg); color: var(--text);
+  border: 1px solid var(--border); border-radius: var(--radius);
+  padding: 8px 12px; font-size: 13px; font-family: inherit; outline: none;
+}
+.modal-foot input[type="text"]:focus { border-color: var(--accent-dim); }
+
+.version-item {
+  display: flex; align-items: center; gap: 12px;
+  padding: 12px 14px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  margin-bottom: 8px;
+  transition: border-color .15s;
+}
+.version-item.active { border-color: var(--accent); }
+.version-item .vi-model {
+  flex: 1;
+  font-size: 14px;
+  word-break: break-all;
+}
+.version-item .vi-model .vi-active-tag {
+  display: inline-block;
+  font-size: 10px;
+  font-weight: 700;
+  color: #1a1a1a;
+  background: var(--accent);
+  padding: 1px 6px;
+  border-radius: 999px;
+  margin-left: 6px;
+  text-transform: uppercase;
+  letter-spacing: .05em;
+}
+.version-item .vi-count { font-size: 12px; color: var(--muted); }
+.version-item .vi-actions { display: flex; gap: 6px; }
+.version-item .vi-actions .btn { padding: 4px 10px; font-size: 12px; }
+
+.toast {
+  position: fixed; bottom: 30px; left: 50%;
+  transform: translateX(-50%) translateY(20px);
+  background: var(--panel-2); color: var(--text);
+  padding: 10px 20px; border-radius: 24px; border: 1px solid var(--border);
+  font-size: 14px; z-index: 200; opacity: 0;
+  transition: opacity .2s, transform .2s;
+  pointer-events: none; max-width: 80vw; text-align: center;
+}
+.toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+@media (max-width: 900px) { .book-title { max-width: 25%; } }
+@media (max-width: 800px) {
+  body.chat-open { padding-right: 0; }
+  #chat-panel { width: 100%; }
+  .book-title { max-width: 40%; }
+  .modal-box { max-height: 90vh; }
+  .model-select { max-width: 120px; font-size: 11px; }
+  #translate-btn { font-size: 12px; padding: 6px 10px; }
+  .version-badge { font-size: 11px; padding: 4px 8px; }
+}
+@media (max-width: 600px) {
+  header { padding: 10px 16px; }
+  header .model-tag { display: none; }
+  .reader-toolbar { padding: 8px 12px; gap: 6px; }
+  .book-title { flex-basis: 100%; order: 1; max-width: 100%; }
+  .model-select { order: 2; }
+  .version-badge { order: 3; }
+  #translate-btn { order: 4; }
+  .progress-inline { order: 5; }
+  .mode-switch { order: 6; flex-basis: 100%; }
+  .page-nav { order: 7; margin-left: auto; }
+  #vocab-toggle { order: 8; }
+  #chat-toggle { order: 9; }
+  #back-btn { order: 10; }
+  #reader { padding: 20px 16px; }
+  .para-study .original, .para-clean .original { font-size: 17px; }
+  .para-study .translation { font-size: 15px; }
+  .para-inline { font-size: 16px; line-height: 1.8; }
+  .ask-btn { right: 0; top: 0; position: static; opacity: 1; margin-bottom: 8px; width: auto; padding: 4px 10px; border-radius: var(--radius); }
+  .page-nav-btn { width: 36px; height: 36px; }
+  .page-nav-input { width: 44px; }
+  .page-nav-total { min-width: 30px; font-size: 12px; }
+  .fa-btn { padding: 6px 10px; font-size: 12px; }
+  .modal-foot { flex-direction: column; align-items: stretch; }
+  .mode-switch .mode-btn { padding: 5px 8px; font-size: 11px; }
+  .version-item { flex-wrap: wrap; }
+  .version-item .vi-actions { width: 100%; margin-top: 6px; }
+}
+</style>
+</head>
+<body data-mode="study">
+
+<header>
+  <h1>Франк <span>· читалка</span></h1>
+  <span class="model-tag" id="model-tag">—</span>
+  <button class="btn" id="back-btn" style="display:none">← К загрузке</button>
+</header>
+
+<div id="app">
+
+<main id="upload-view" class="view active">
+  <div class="upload-wrap">
+    <div class="upload-card">
+      <div id="dropzone">
+        <div class="icon">📖</div>
+        <p><strong>Перетащите .txt</strong> сюда<br>или нажмите, чтобы выбрать</p>
+        <div id="file-name"></div>
+      </div>
+      <input type="file" id="file-input" accept=".txt" hidden>
+      <div class="upload-actions">
+        <button class="btn btn-accent" id="process-btn" disabled>Загрузить</button>
+      </div>
+      <div class="recent" id="recent" style="display:none">
+        <h3>Недавние</h3>
+        <div id="recent-list"></div>
+      </div>
+    </div>
+  </div>
+</main>
+
+<main id="reader-view" class="view">
+  <div class="reader-toolbar">
+    <span class="book-title" id="book-title">—</span>
+    <select class="model-select" id="model-select" title="Модель для перевода и чата"></select>
+    <button class="btn btn-accent" id="translate-btn" title="Перевести непереведённые абзацы">▶ Перевести</button>
+    <div class="version-badge" id="version-badge" title="Версии перевода этой книги">
+      <span id="version-badge-text">v: —</span>
+    </div>
+    <div class="progress-inline" id="progress-inline" style="display:none">
+      <span id="progress-inline-label">0 / 0</span>
+      <div class="progress-inline-bar"><div class="progress-inline-fill" id="progress-inline-fill"></div></div>
+    </div>
+    <div class="mode-switch" role="group" aria-label="Режим чтения">
+      <button class="mode-btn active" data-mode="study">Изучение</button>
+      <button class="mode-btn" data-mode="check">Проверка</button>
+      <button class="mode-btn" data-mode="double">Два прохода</button>
+      <button class="mode-btn" data-mode="inline">Подстрочник</button>
+    </div>
+    <div class="page-nav">
+      <button class="page-nav-btn" id="page-prev" title="Предыдущая (←)">‹</button>
+      <input type="number" class="page-nav-input" id="page-input" min="1" value="1">
+      <span class="page-nav-total" id="page-total">/ —</span>
+      <button class="page-nav-btn" id="page-next" title="Следующая (→)">›</button>
+    </div>
+    <button class="btn btn-icon" id="vocab-toggle" title="Словарь">
+      📚 <span id="vocab-badge" class="zero">0</span>
+    </button>
+    <button class="btn btn-icon" id="chat-toggle" title="Чат с моделью">💬</button>
+  </div>
+
+  <div class="reader-banner" id="reader-banner" style="display:none">
+    <span class="loader"></span>
+    <span>Готовим текст… Перевод появится здесь, как только модель обработает первые абзацы.</span>
+  </div>
+
+  <div id="reader-scroll">
+    <article id="reader"></article>
+  </div>
+</main>
+
+</div>
+
+<aside id="chat-panel">
+  <div class="chat-header">
+    <span class="chat-title">💬 Помощник</span>
+    <button class="btn btn-icon" id="chat-close" title="Закрыть">✕</button>
+  </div>
+  <div class="chat-context" id="chat-context">Контекст: —</div>
+  <div class="chat-messages" id="chat-messages">
+    <div class="chat-empty">Спросите что-нибудь про текущий абзац. Или выделите фрагмент — над ним появятся кнопки.</div>
+  </div>
+  <div class="chat-input-wrap">
+    <textarea id="chat-input" placeholder="Спросите модель… (Enter — отправить)"></textarea>
+    <button id="chat-send" disabled>→</button>
+  </div>
+</aside>
+
+<div id="floating-actions">
+  <button class="fa-btn fa-explain" id="btn-explain">🌐 Объяснить</button>
+  <button class="fa-btn fa-vocab" id="btn-add-vocab">➕ В словарь</button>
+</div>
+
+<div id="vocab-modal" class="modal-overlay">
+  <div class="modal-box">
+    <div class="modal-head">
+      <h2>📚 Словарь</h2>
+      <span class="mh-count" id="vocab-count">0 слов</span>
+      <button class="btn btn-icon mh-close" id="vocab-close">✕</button>
+    </div>
+    <div class="modal-body" id="vocab-body">
+      <div class="modal-empty">Пока пусто. Выделите слово в тексте и нажмите «В словарь».</div>
+    </div>
+    <div class="modal-foot">
+      <input type="text" id="anki-tag" placeholder="tag для Anki" value="frank_reader">
+      <button class="btn btn-small btn-danger" id="btn-vocab-clear">Очистить</button>
+      <button class="btn btn-accent" id="btn-anki-generate">Создать Anki CSV</button>
+    </div>
+  </div>
+</div>
+
+<div id="versions-modal" class="modal-overlay">
+  <div class="modal-box">
+    <div class="modal-head">
+      <h2>Версии перевода</h2>
+      <span class="mh-count" id="versions-count"></span>
+      <button class="btn btn-icon mh-close" id="versions-close">✕</button>
+    </div>
+    <div class="modal-body" id="versions-body"></div>
+  </div>
+</div>
+
+<script>
+const fileInput          = document.getElementById('file-input');
+const dropzone           = document.getElementById('dropzone');
+const fileName           = document.getElementById('file-name');
+const processBtn         = document.getElementById('process-btn');
+const uploadView         = document.getElementById('upload-view');
+const readerView         = document.getElementById('reader-view');
+const readerScroll       = document.getElementById('reader-scroll');
+const backBtn            = document.getElementById('back-btn');
+const bookTitle          = document.getElementById('book-title');
+const modelTag           = document.getElementById('model-tag');
+const modelSelect        = document.getElementById('model-select');
+const translateBtn       = document.getElementById('translate-btn');
+const versionBadge       = document.getElementById('version-badge');
+const versionBadgeText   = document.getElementById('version-badge-text');
+const progressInline     = document.getElementById('progress-inline');
+const progressInlineLabel= document.getElementById('progress-inline-label');
+const progressInlineFill = document.getElementById('progress-inline-fill');
+const readerBanner       = document.getElementById('reader-banner');
+const recentWrap         = document.getElementById('recent');
+const recentList         = document.getElementById('recent-list');
+const readerEl           = document.getElementById('reader');
+const pagePrevBtn        = document.getElementById('page-prev');
+const pageNextBtn        = document.getElementById('page-next');
+const pageInput          = document.getElementById('page-input');
+const pageTotal          = document.getElementById('page-total');
+const chatToggle         = document.getElementById('chat-toggle');
+const chatClose          = document.getElementById('chat-close');
+const chatMessages       = document.getElementById('chat-messages');
+const chatInput          = document.getElementById('chat-input');
+const chatSend           = document.getElementById('chat-send');
+const chatContext        = document.getElementById('chat-context');
+const floatingActions    = document.getElementById('floating-actions');
+const btnExplain         = document.getElementById('btn-explain');
+const btnAddVocab        = document.getElementById('btn-add-vocab');
+const vocabToggle        = document.getElementById('vocab-toggle');
+const vocabBadge         = document.getElementById('vocab-badge');
+const vocabModal         = document.getElementById('vocab-modal');
+const vocabModalBody     = document.getElementById('vocab-body');
+const vocabCount         = document.getElementById('vocab-count');
+const vocabClose         = document.getElementById('vocab-close');
+const btnVocabClear      = document.getElementById('btn-vocab-clear');
+const btnAnkiGenerate    = document.getElementById('btn-anki-generate');
+const ankiTagInput       = document.getElementById('anki-tag');
+const versionsModal      = document.getElementById('versions-modal');
+const versionsBody       = document.getElementById('versions-body');
+const versionsCount      = document.getElementById('versions-count');
+const versionsClose      = document.getElementById('versions-close');
+
+let selectedFile = null;
+let currentBookId = null;
+let currentJobId = null;
+let backgroundPollTimer = null;
+let currentContextIndex = 0;
+let chatHistory = [];
+let chatBusy = false;
+let chatAbortController = null;
+let pendingSelection = null;
+let bookCache = null;
+let renderedParagraphs = {};
+let pages = [];
+let currentPage = 0;
+let repaginateTimer = null;
+let vocabList = [];
+let ankiBusy = false;
+let availableModels = [];
+let selectedModelForTranslation = null;
+
+/* ---------- VOCAB ---------- */
+function loadVocab() {
+  try {
+    const saved = sessionStorage.getItem('frank_vocab');
+    if (saved) vocabList = JSON.parse(saved) || [];
+  } catch { vocabList = []; }
+}
+function saveVocab() {
+  try { sessionStorage.setItem('frank_vocab', JSON.stringify(vocabList)); } catch {}
+}
+function cleanWord(raw) {
+  return raw.trim()
+    .replace(/^[\s.,!?"'«»""'();:—–\-\[\]{}]+/g, '')
+    .replace(/[\s.,!?"'«»""'();:—–\-\[\]{}]+$/g, '')
+    .trim();
+}
+function renderVocabBadge() {
+  vocabBadge.textContent = vocabList.length;
+  vocabBadge.classList.toggle('zero', vocabList.length === 0);
+  vocabCount.textContent = vocabList.length === 1 ? '1 слово' : `${vocabList.length} слов`;
+}
+function renderVocabList() {
+  renderVocabBadge();
+  if (!vocabList.length) {
+    vocabModalBody.innerHTML = '<div class="modal-empty">Пока пусто. Выделите слово в тексте и нажмите «В словарь».</div>';
+    return;
+  }
+  vocabModalBody.innerHTML = '';
+  vocabList.forEach((word, i) => {
+    const el = document.createElement('div');
+    el.className = 'vocab-item';
+    const w = document.createElement('span');
+    w.className = 'vi-word';
+    w.textContent = word;
+    const btn = document.createElement('button');
+    btn.className = 'vi-remove';
+    btn.textContent = '✕';
+    btn.onclick = () => removeFromVocab(i);
+    el.appendChild(w); el.appendChild(btn);
+    vocabModalBody.appendChild(el);
+  });
+}
+function addToVocab(raw) {
+  const word = cleanWord(raw);
+  if (!word) return;
+  const key = word.toLowerCase();
+  if (vocabList.some(w => w.toLowerCase() === key)) {
+    showToast(`«${word}» уже в словаре`); return;
+  }
+  vocabList.push(word);
+  saveVocab(); renderVocabList();
+  showToast(`✓ Добавлено: ${word}`);
+}
+function removeFromVocab(index) {
+  if (index < 0 || index >= vocabList.length) return;
+  vocabList.splice(index, 1);
+  saveVocab(); renderVocabList();
+}
+function clearVocab() {
+  if (!vocabList.length) return;
+  if (!confirm(`Удалить все ${vocabList.length} слов?`)) return;
+  vocabList = []; saveVocab(); renderVocabList();
+}
+function openVocabModal() { renderVocabList(); vocabModal.classList.add('visible'); }
+function closeVocabModal() { vocabModal.classList.remove('visible'); }
+
+function showToast(msg, ms = 1800) {
+  const t = document.createElement('div');
+  t.className = 'toast'; t.textContent = msg;
+  document.body.appendChild(t);
+  setTimeout(() => t.classList.add('show'), 10);
+  setTimeout(() => {
+    t.classList.remove('show');
+    setTimeout(() => t.remove(), 300);
+  }, ms);
+}
+
+function downloadText(text, filename) {
+  const blob = new Blob([text], { type: 'text/csv;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = filename;
+  document.body.appendChild(a); a.click();
+  document.body.removeChild(a); URL.revokeObjectURL(url);
+}
+
+async function generateAnki() {
+  if (ankiBusy) return;
+  if (!vocabList.length) { showToast('Словарь пуст'); return; }
+  if (!currentBookId) { showToast('Откройте книгу'); return; }
+  ankiBusy = true;
+  const oldText = btnAnkiGenerate.textContent;
+  btnAnkiGenerate.innerHTML = '<span class="loader"></span> Готовлю…';
+  btnAnkiGenerate.disabled = true;
+  try {
+    const tag = (ankiTagInput.value || '').trim() || 'frank_reader';
+    const r = await fetch(`/api/anki/${currentBookId}`, {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({ words: vocabList, tag }),
+    });
+    const data = await r.json();
+    if (!r.ok) throw new Error(data.error || 'anki failed');
+    const date = new Date().toISOString().slice(0, 10);
+    const safeTag = tag.replace(/[^a-zA-Z0-9_-]/g, '_');
+    downloadText(data.csv, `anki_${safeTag}_${date}.csv`);
+    if (data.errors && data.errors.length) {
+      showToast(`Готово, но ${data.errors.length} батч(ей) с ошибками`, 3500);
+    } else {
+      showToast(`✓ CSV готов: ${data.rows} строк`);
+    }
+  } catch (e) {
+    showToast('Ошибка: ' + e.message, 3500);
+  } finally {
+    ankiBusy = false;
+    btnAnkiGenerate.textContent = oldText;
+    btnAnkiGenerate.disabled = false;
+  }
+}
+
+/* ---------- VIEWS ---------- */
+function showView(v) {
+  [uploadView, readerView].forEach(x => x.classList.remove('active'));
+  v.classList.add('active');
+  backBtn.style.display = v === uploadView ? 'none' : 'inline-block';
+}
+
+async function loadConfig() {
+  try {
+    const r = await fetch('/api/config');
+    const c = await r.json();
+    modelTag.textContent = c.model;
+  } catch {}
+}
+
+async function loadModels() {
+  try {
+    const r = await fetch('/api/models');
+    const data = await r.json();
+    availableModels = data.models || [];
+    const def = data.default || '';
+    modelSelect.innerHTML = '';
+    if (!availableModels.length) {
+      const opt = document.createElement('option');
+      opt.value = ''; opt.textContent = def || '— нет моделей —';
+      modelSelect.appendChild(opt);
+      modelSelect.disabled = true;
+      return;
+    }
+    for (const name of availableModels) {
+      const opt = document.createElement('option');
+      opt.value = name; opt.textContent = name;
+      if (name === def) opt.selected = true;
+      modelSelect.appendChild(opt);
+    }
+    modelSelect.disabled = false;
+  } catch (e) {
+    console.error('models load failed', e);
+    modelSelect.innerHTML = '<option value="">— Ollama недоступна —</option>';
+    modelSelect.disabled = true;
+  }
+}
+
+async function loadRecent() {
+  try {
+    const r = await fetch('/api/books');
+    const books = await r.json();
+    if (!books.length) { recentWrap.style.display = 'none'; return; }
+    recentWrap.style.display = 'block';
+    recentList.innerHTML = '';
+    for (const b of books) {
+      const el = document.createElement('div');
+      el.className = 'recent-item';
+      const verSuffix = b.versions_count > 1 ? ` · ${b.versions_count}v` : '';
+      el.innerHTML = `<span class="rtitle">${escapeHtml(b.title)}</span>
+                      <span class="rprogress">${b.done}/${b.total_chunks}${verSuffix}</span>`;
+      el.onclick = () => openBook(b.id);
+      recentList.appendChild(el);
+    }
+  } catch {}
+}
+
+function escapeHtml(s) {
+  return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+
+/* ---------- FILE ---------- */
+dropzone.addEventListener('click', () => fileInput.click());
+fileInput.addEventListener('change', e => handleFile(e.target.files[0]));
+['dragover','dragenter'].forEach(ev => dropzone.addEventListener(ev, e => {
+  e.preventDefault(); dropzone.classList.add('dragover');
+}));
+['dragleave','drop'].forEach(ev => dropzone.addEventListener(ev, e => {
+  e.preventDefault(); dropzone.classList.remove('dragover');
+}));
+dropzone.addEventListener('drop', e => handleFile(e.dataTransfer.files[0]));
+
+function handleFile(f) {
+  if (!f) return;
+  if (!f.name.toLowerCase().endsWith('.txt')) { alert('Нужен файл .txt'); return; }
+  selectedFile = f;
+  fileName.textContent = f.name;
+  processBtn.disabled = false;
+}
+
+processBtn.addEventListener('click', async () => {
+  if (!selectedFile) return;
+  processBtn.disabled = true;
+  processBtn.innerHTML = '<span class="loader"></span> Загрузка…';
+  try {
+    const fd = new FormData();
+    fd.append('file', selectedFile);
+    const r = await fetch('/api/upload', { method: 'POST', body: fd });
+    const data = await r.json();
+    if (!r.ok) throw new Error(data.error || 'upload failed');
+    selectedFile = null;
+    fileName.textContent = '';
+    processBtn.innerHTML = 'Загрузить';
+    await openBook(data.book_id);
+  } catch (e) {
+    alert('Ошибка: ' + e.message);
+    processBtn.disabled = false;
+    processBtn.textContent = 'Загрузить';
+  }
+});
+
+/* ---------- VERSION BADGE ---------- */
+function updateVersionBadge() {
+  if (!bookCache) {
+    versionBadge.style.display = 'none';
+    return;
+  }
+  versionBadge.style.display = '';
+  const versions = bookCache.available_versions || [];
+  const active = versions.find(v => v.model === bookCache.active_model);
+  const translated = active ? active.translated : 0;
+  const total = active ? active.total : (bookCache.total_chunks || 0);
+  let text = `<span class="vb-count">${translated}/${total}</span>`;
+  if (versions.length > 1) {
+    text += ` <span class="vb-multi">${versions.length}v</span>`;
+  }
+  versionBadgeText.innerHTML = text;
+  versionBadge.title = `Активная: ${bookCache.active_model}. Всего версий: ${versions.length}`;
+}
+
+versionBadge.addEventListener('click', () => openVersionsModal());
+
+function renderVersionsList() {
+  if (!bookCache) { versionsBody.innerHTML = ''; return; }
+  const versions = bookCache.available_versions || [];
+  versionsCount.textContent = `${versions.length} ${versions.length === 1 ? 'версия' : 'версий'}`;
+  versionsBody.innerHTML = '';
+  if (!versions.length) {
+    versionsBody.innerHTML = '<div class="modal-empty">Версий пока нет.</div>';
+    return;
+  }
+  const sorted = [...versions].sort((a, b) => {
+    if (a.model === bookCache.active_model) return -1;
+    if (b.model === bookCache.active_model) return 1;
+    return a.model.localeCompare(b.model);
+  });
+  for (const v of sorted) {
+    const isActive = v.model === bookCache.active_model;
+    const el = document.createElement('div');
+    el.className = 'version-item' + (isActive ? ' active' : '');
+
+    const modelEl = document.createElement('div');
+    modelEl.className = 'vi-model';
+    modelEl.innerHTML = escapeHtml(v.model) +
+      (isActive ? ' <span class="vi-active-tag">активна</span>' : '');
+    el.appendChild(modelEl);
+
+    const countEl = document.createElement('div');
+    countEl.className = 'vi-count';
+    countEl.textContent = `${v.translated}/${v.total}`;
+    el.appendChild(countEl);
+
+    const actions = document.createElement('div');
+    actions.className = 'vi-actions';
+
+    if (!isActive) {
+      const switchBtn = document.createElement('button');
+      switchBtn.className = 'btn btn-small';
+      switchBtn.textContent = 'Открыть';
+      switchBtn.onclick = () => switchToVersion(v.model);
+      actions.appendChild(switchBtn);
+
+      if (versions.length > 1) {
+        const delBtn = document.createElement('button');
+        delBtn.className = 'btn btn-small btn-danger';
+        delBtn.textContent = '✕';
+        delBtn.title = 'Удалить версию';
+        delBtn.onclick = () => deleteVersion(v.model);
+        actions.appendChild(delBtn);
+      }
+    }
+    el.appendChild(actions);
+    versionsBody.appendChild(el);
+  }
+}
+
+function openVersionsModal() {
+  renderVersionsList();
+  versionsModal.classList.add('visible');
+}
+function closeVersionsModal() { versionsModal.classList.remove('visible'); }
+
+async function switchToVersion(model) {
+  if (!currentBookId || !bookCache) return;
+  if (backgroundPollTimer) {
+    showToast('Дождитесь завершения обработки');
+    return;
+  }
+  if (model === bookCache.active_model) { closeVersionsModal(); return; }
+  try {
+    const r = await fetch(`/api/book/${currentBookId}/version`, {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({ model }),
+    });
+    const data = await r.json();
+    if (!r.ok) throw new Error(data.error || 'switch failed');
+    await reloadBook();
+    modelSelect.value = model;
+    selectedModelForTranslation = model;
+    closeVersionsModal();
+    showToast(`Открыта версия: ${model}`);
+
+    try {
+      const jr = await fetch(`/api/book/${currentBookId}/job`);
+      const jd = await jr.json();
+      if (jd.job && jd.job.state === 'running') {
+        currentJobId = jd.job.id;
+        startBackgroundRefresh();
+      }
+    } catch {}
+  } catch (e) {
+    showToast('Ошибка: ' + e.message);
+  }
+}
+
+async function deleteVersion(model) {
+  if (!currentBookId) return;
+  if (!confirm(`Удалить версию "${model}"?`)) return;
+  try {
+    const r = await fetch(`/api/book/${currentBookId}/version/${encodeURIComponent(model)}`, {
+      method: 'DELETE',
+    });
+    const data = await r.json();
+    if (!r.ok) throw new Error(data.error || 'delete failed');
+    await reloadBook();
+    renderVersionsList();
+    showToast('Версия удалена');
+  } catch (e) {
+    showToast('Ошибка: ' + e.message);
+  }
+}
+
+async function reloadBook() {
+  if (!currentBookId) return;
+  const r = await fetch(`/api/book/${currentBookId}`);
+  const book = await r.json();
+  if (!r.ok) { showToast('Ошибка загрузки книги'); return; }
+  bookCache = book;
+  bookTitle.textContent = book.title;
+
+  if (book.model && availableModels.includes(book.model)) {
+    modelSelect.value = book.model;
+  }
+  selectedModelForTranslation = book.model;
+
+  renderBook(book);
+  requestAnimationFrame(() => { paginate(); applyPage(true); });
+  updateTranslateButton();
+  updateVersionBadge();
+  updateProgressInline(book);
+  updateReaderBanner(book);
+}
+
+/* ---------- MODEL SELECT ---------- */
+modelSelect.addEventListener('change', async e => {
+  const newModel = e.target.value;
+  if (!newModel || !bookCache) return;
+  selectedModelForTranslation = newModel;
+  updateTranslateButton();
+
+  if (newModel === bookCache.active_model) return;
+  if (backgroundPollTimer) {
+    modelSelect.value = bookCache.active_model;
+    selectedModelForTranslation = bookCache.active_model;
+    updateTranslateButton();
+    return;
+  }
+
+  const versions = bookCache.available_versions || [];
+  const existing = versions.find(v => v.model === newModel);
+
+  if (existing) {
+    await switchToVersion(newModel);
+  } else {
+    showToast(`Версии "${newModel}" нет. Нажмите «Перевести».`, 2200);
+  }
+});
+
+/* ---------- TRANSLATE BUTTON ---------- */
+function updateTranslateButton() {
+  if (!bookCache) {
+    translateBtn.style.display = 'none';
+    return;
+  }
+  translateBtn.style.display = '';
+
+  if (backgroundPollTimer) {
+    translateBtn.disabled = true;
+    translateBtn.innerHTML = '<span class="loader"></span> Перевод…';
+    translateBtn.classList.add('btn-accent');
+    translateBtn.title = 'Идёт обработка';
+    return;
+  }
+
+  const pending = bookCache.paragraphs.filter(p => !p.translation || p.error).length;
+  const isActiveModel = selectedModelForTranslation === bookCache.active_model;
+
+  translateBtn.disabled = false;
+
+  if (!isActiveModel) {
+    translateBtn.textContent = `▶ Перевести (${selectedModelForTranslation})`;
+    translateBtn.classList.add('btn-accent');
+    translateBtn.title = `Создать версию моделью «${selectedModelForTranslation}» и перевести`;
+  } else if (pending > 0) {
+    translateBtn.textContent = `▶ Перевести (${pending})`;
+    translateBtn.classList.add('btn-accent');
+    translateBtn.title = `Перевести ${pending} абзацев`;
+  } else {
+    translateBtn.textContent = '↻ Перевести заново';
+    translateBtn.classList.remove('btn-accent');
+    translateBtn.title = 'Перевести все абзацы заново';
+  }
+}
+
+async function onTranslateClick() {
+  if (!currentBookId || !bookCache) return;
+  if (backgroundPollTimer) return;
+
+  const targetModel = selectedModelForTranslation || bookCache.active_model;
+
+  if (bookCache.active_model !== targetModel) {
+    try {
+      const r = await fetch(`/api/book/${currentBookId}/version`, {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({ model: targetModel }),
+      });
+      const data = await r.json();
+      if (!r.ok) throw new Error(data.error || 'switch failed');
+      await reloadBook();
+    } catch (e) {
+      showToast('Ошибка: ' + e.message);
+      return;
+    }
+  }
+
+  const pending = bookCache.paragraphs.filter(p => !p.translation || p.error).length;
+
+  if (pending > 0) {
+    const r = await fetch(`/api/process/${currentBookId}`, { method: 'POST' });
+    const data = await r.json();
+    if (data.error) { showToast('Ошибка: ' + data.error); return; }
+    currentJobId = data.job_id;
+    startBackgroundRefresh();
+    showToast(`Перевожу ${pending} абзацев моделью ${targetModel}`);
+    return;
+  }
+
+  if (!confirm(`Все абзацы уже переведены (версия "${bookCache.active_model}").\nПеревести заново этой же моделью?`)) return;
+
+  try {
+    const rr = await fetch(`/api/book/${currentBookId}/reset`, { method: 'POST' });
+    if (!rr.ok) throw new Error('reset failed');
+    await reloadBook();
+
+    const pr = await fetch(`/api/process/${currentBookId}`, { method: 'POST' });
+    const pd = await pr.json();
+    if (pd.error) { showToast('Ошибка: ' + pd.error); return; }
+    currentJobId = pd.job_id;
+    startBackgroundRefresh();
+    showToast(`Перевожу заново моделью ${targetModel}`);
+  } catch (e) {
+    showToast('Ошибка: ' + e.message);
+  }
+}
+
+translateBtn.addEventListener('click', onTranslateClick);
+
+/* ---------- PARAGRAPH ---------- */
+function paragraphState(p) {
+  if (p.error) return 'error';
+  if (p.translation) return 'ready';
+  return 'pending';
+}
+
+function splitSentences(text) {
+  if (!text) return [];
+  const matches = text.match(/[^.!?…]+[.!?…]+["'»”)]*\s*|[^.!?…]+$/g);
+  if (!matches) return [text.trim()];
+  return matches.map(s => s.trim()).filter(Boolean);
+}
+
+function buildInlineContent(p) {
+  const wrap = document.createElement('div');
+  wrap.className = 'para-inline';
+  const origText  = p.original || p.chunk || '';
+  const transText = p.translation || '';
+
+  if (!transText) {
+    const o = document.createElement('span');
+    o.className = 'inline-original';
+    o.textContent = origText;
+    wrap.appendChild(o);
+    return wrap;
+  }
+
+  const origSents  = splitSentences(origText);
+  const transSents = splitSentences(transText);
+
+  if (origSents.length === transSents.length && origSents.length > 0) {
+    origSents.forEach((os, i) => {
+      const o = document.createElement('span');
+      o.className = 'inline-original';
+      o.textContent = os + ' ';
+      wrap.appendChild(o);
+      const t = document.createElement('span');
+      t.className = 'inline-translation';
+      t.textContent = '(' + transSents[i] + ') ';
+      wrap.appendChild(t);
+    });
+  } else {
+    const o = document.createElement('span');
+    o.className = 'inline-original';
+    o.textContent = origText + ' ';
+    wrap.appendChild(o);
+    const t = document.createElement('span');
+    t.className = 'inline-translation';
+    t.textContent = '(' + transText + ')';
+    wrap.appendChild(t);
+    const note = document.createElement('span');
+    note.className = 'inline-note';
+    note.textContent = `Не удалось выровнять по предложениям — показан абзац целиком.`;
+    wrap.appendChild(note);
+  }
+  return wrap;
+}
+
+function fillParagraphElement(div, p) {
+  div.innerHTML = '';
+  const state = paragraphState(p);
+  div.dataset.state = state;
+  div.classList.toggle('pending', state === 'pending');
+
+  div.appendChild(buildInlineContent(p));
+
+  const askBtn = document.createElement('button');
+  askBtn.className = 'ask-btn';
+  askBtn.textContent = '💬';
+  askBtn.title = 'Спросить про этот абзац';
+  askBtn.onclick = () => { currentContextIndex = p.index; openChat(); updateContextLabel(); };
+  div.appendChild(askBtn);
+
+  const study = document.createElement('div');
+  study.className = 'para-study';
+
+  const orig = document.createElement('div');
+  orig.className = 'original';
+  orig.textContent = p.original || p.chunk;
+  study.appendChild(orig);
+
+  if (state === 'ready') {
+    const t = document.createElement('div');
+    t.className = 'translation';
+    t.textContent = p.translation;
+    study.appendChild(t);
+    if (p.comment) {
+      const c = document.createElement('div');
+      c.className = 'comment';
+      c.textContent = p.comment;
+      study.appendChild(c);
+    }
+    if (p.model) {
+      const badge = document.createElement('div');
+      badge.className = 'para-model';
+      badge.textContent = `модель: ${p.model}`;
+      study.appendChild(badge);
+    }
+  } else if (state === 'error') {
+    const err = document.createElement('div');
+    err.className = 'error-block';
+    const span = document.createElement('span');
+    span.textContent = '⚠ ' + p.error;
+    const btn = document.createElement('button');
+    btn.className = 'btn btn-small';
+    btn.textContent = 'Перегенерировать';
+    btn.onclick = () => retryParagraph(p.index);
+    err.appendChild(span); err.appendChild(btn);
+    study.appendChild(err);
+  } else {
+    const pending = document.createElement('div');
+    pending.className = 'translation pending-text';
+    pending.innerHTML = '<span class="loader"></span> Перевод готовится…';
+    study.appendChild(pending);
+  }
+
+  const clean = document.createElement('div');
+  clean.className = 'para-clean';
+  const origClean = document.createElement('div');
+  origClean.className = 'original';
+  origClean.textContent = p.original || p.chunk;
+  clean.appendChild(origClean);
+
+  div.appendChild(study);
+  div.appendChild(clean);
+}
+
+function renderBook(book) {
+  readerEl.innerHTML = '';
+  renderedParagraphs = {};
+  for (const p of book.paragraphs) {
+    const div = document.createElement('div');
+    div.className = 'paragraph';
+    div.dataset.index = p.index;
+    fillParagraphElement(div, p);
+    readerEl.appendChild(div);
+    renderedParagraphs[p.index] = div;
+  }
+  updateProgressInline(book);
+  updateReaderBanner(book);
+}
+
+/* ---------- PAGINATION ---------- */
+function paginate() {
+  if (!bookCache) return;
+  const all = readerEl.querySelectorAll('.paragraph');
+  if (!all.length) { pages = []; currentPage = 0; updatePageNav(); return; }
+
+  const savedMode = document.body.dataset.mode || 'study';
+  document.body.dataset.mode = 'study';
+  all.forEach(el => el.style.display = '');
+
+  const containerH = readerScroll.clientHeight;
+  const available = Math.max(200, containerH - 64);
+  const MB = 40;
+  const heights = [];
+  all.forEach(el => heights.push(el.offsetHeight + MB));
+
+  const newPages = [];
+  let cur = [], curH = 0;
+  for (let i = 0; i < heights.length; i++) {
+    const h = heights[i];
+    if (curH + h > available && cur.length > 0) {
+      newPages.push(cur); cur = [i]; curH = h;
+    } else { cur.push(i); curH += h; }
+  }
+  if (cur.length) newPages.push(cur);
+
+  pages = newPages;
+  if (currentPage >= pages.length) currentPage = Math.max(0, pages.length - 1);
+  document.body.dataset.mode = savedMode;
+}
+
+function applyPage(updateAnchor = true) {
+  if (!pages.length) { updatePageNav(); return; }
+  if (currentPage < 0) currentPage = 0;
+  if (currentPage >= pages.length) currentPage = pages.length - 1;
+
+  const visible = new Set(pages[currentPage]);
+  readerEl.querySelectorAll('.paragraph').forEach(el => {
+    const idx = parseInt(el.dataset.index);
+    el.style.display = visible.has(idx) ? '' : 'none';
+  });
+  if (updateAnchor) readerScroll.scrollTop = 0;
+  updatePageNav();
+
+  if (updateAnchor && pages[currentPage].length) {
+    currentContextIndex = pages[currentPage][0];
+    updateContextLabel();
+  }
+}
+
+function updatePageNav() {
+  if (!pages.length) {
+    if (document.activeElement !== pageInput) pageInput.value = '';
+    pageInput.disabled = true;
+    pageTotal.textContent = '/ —';
+    pagePrevBtn.disabled = true;
+    pageNextBtn.disabled = true;
+    return;
+  }
+  pageInput.disabled = false;
+  pageInput.max = pages.length;
+  if (document.activeElement !== pageInput) pageInput.value = currentPage + 1;
+  pageTotal.textContent = '/ ' + pages.length;
+  pagePrevBtn.disabled = currentPage <= 0;
+  pageNextBtn.disabled = currentPage >= pages.length - 1;
+}
+
+function goToPage(n) {
+  if (!pages.length) return;
+  if (n < 0) n = 0;
+  if (n >= pages.length) n = pages.length - 1;
+  if (n === currentPage) { pageInput.value = currentPage + 1; pageInput.blur(); return; }
+  currentPage = n;
+  applyPage(true);
+  pageInput.blur();
+}
+
+function repaginateAndKeepAnchor() {
+  if (!bookCache) return;
+  const anchor = currentContextIndex;
+  paginate();
+  let targetPage = 0;
+  for (let i = 0; i < pages.length; i++) {
+    if (pages[i].includes(anchor)) { targetPage = i; break; }
+  }
+  currentPage = targetPage;
+  applyPage(false);
+}
+
+function scheduleRepaginate() {
+  if (repaginateTimer) clearTimeout(repaginateTimer);
+  repaginateTimer = setTimeout(() => {
+    repaginateTimer = null;
+    repaginateAndKeepAnchor();
+  }, 150);
+}
+
+pagePrevBtn.addEventListener('click', () => goToPage(currentPage - 1));
+pageNextBtn.addEventListener('click', () => goToPage(currentPage + 1));
+
+pageInput.addEventListener('keydown', e => {
+  if (e.key === 'Enter') {
+    e.preventDefault();
+    const n = parseInt(pageInput.value, 10);
+    if (isNaN(n) || n < 1) { pageInput.value = currentPage + 1; pageInput.blur(); return; }
+    goToPage(n - 1);
+  } else if (e.key === 'Escape') {
+    pageInput.value = currentPage + 1; pageInput.blur();
+  }
+});
+pageInput.addEventListener('blur', () => {
+  if (pages.length) pageInput.value = currentPage + 1;
+});
+
+document.addEventListener('keydown', e => {
+  const t = e.target;
+  if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.tagName === 'SELECT')) return;
+  if (!readerView.classList.contains('active')) return;
+  if (vocabModal.classList.contains('visible')) {
+    if (e.key === 'Escape') closeVocabModal();
+    return;
+  }
+  if (versionsModal.classList.contains('visible')) {
+    if (e.key === 'Escape') closeVersionsModal();
+    return;
+  }
+  if (e.key === 'ArrowLeft') { e.preventDefault(); goToPage(currentPage - 1); }
+  else if (e.key === 'ArrowRight') { e.preventDefault(); goToPage(currentPage + 1); }
+});
+
+window.addEventListener('resize', () => { scheduleRepaginate(); });
+
+/* ---------- OPEN ---------- */
+async function openBook(bookId) {
+  stopBackgroundRefresh();
+  currentBookId = bookId;
+  currentJobId = null;
+  chatHistory = [];
+  currentContextIndex = 0;
+  currentPage = 0;
+  pages = [];
+  chatMessages.innerHTML = '<div class="chat-empty">Спросите что-нибудь про текущий абзац. Или выделите фрагмент — над ним появятся кнопки.</div>';
+
+  const r = await fetch(`/api/book/${bookId}`);
+  const book = await r.json();
+  if (!r.ok) { alert('Ошибка: ' + (book.error || 'not found')); return; }
+
+  bookCache = book;
+  bookTitle.textContent = book.title;
+
+  if (book.model && availableModels.includes(book.model)) {
+    modelSelect.value = book.model;
+  } else if (availableModels.length && !availableModels.includes(book.model)) {
+    modelSelect.value = availableModels[0];
+  }
+  selectedModelForTranslation = modelSelect.value || book.model;
+
+  if (!ankiTagInput.value || ankiTagInput.value === 'frank_reader') {
+    const defaultTag = book.title.toLowerCase().replace(/[^a-z0-9а-я_-]+/gi, '_').replace(/^_+|_+$/g, '').slice(0, 30) || 'frank_reader';
+    ankiTagInput.value = defaultTag;
+  }
+  renderBook(book);
+  showView(readerView);
+  updateTranslateButton();
+  updateVersionBadge();
+
+  requestAnimationFrame(() => { paginate(); applyPage(true); });
+
+  // Проверяем, не бежит ли уже job на бэке
+  try {
+    const jr = await fetch(`/api/book/${bookId}/job`);
+    const jd = await jr.json();
+    if (jd.job && jd.job.state === 'running') {
+      currentJobId = jd.job.id;
+      startBackgroundRefresh();
+      showToast('Обнаружен активный перевод — продолжаю следить', 2200);
+      return;
+    }
+  } catch {}
+
+  const anyTranslated = book.paragraphs.some(p => p.translation);
+  if (!anyTranslated && book.paragraphs.some(p => !p.translation)) {
+    readerBanner.style.display = 'flex';
+    readerBanner.innerHTML =
+      '<span>Версия «' + escapeHtml(book.active_model) + '» ещё не переведена. Нажмите «Перевести», чтобы запустить.</span>';
+  } else {
+    readerBanner.style.display = 'none';
+  }
+}
+
+function startBackgroundRefresh() {
+  stopBackgroundRefresh();
+  backgroundPollTimer = setInterval(async () => {
+    if (!currentBookId) { stopBackgroundRefresh(); return; }
+    try {
+      const r = await fetch(`/api/book/${currentBookId}`);
+      if (!r.ok) return;
+      const newBook = await r.json();
+      updateBookUI(newBook);
+
+      const allProcessed = newBook.paragraphs.every(p => p.translation || p.error);
+      if (allProcessed) { stopBackgroundRefresh(); return; }
+
+      if (currentJobId) {
+        try {
+          const sr = await fetch(`/api/status/${currentJobId}`);
+          if (sr.ok) {
+            const job = await sr.json();
+            if (job.state === 'error') {
+              stopBackgroundRefresh();
+              readerBanner.style.display = 'flex';
+              readerBanner.innerHTML = `<span style="color:var(--error)">⚠ Обработка прервана: ${escapeHtml(job.error || 'неизвестная ошибка')}</span>`;
+            } else if (job.state === 'cancelled') {
+              stopBackgroundRefresh();
+              readerBanner.style.display = 'flex';
+              readerBanner.innerHTML = `<span style="color:var(--muted)">Перевод остановлен: ${escapeHtml(job.error || 'отменён')}</span>`;
+              try {
+                const br = await fetch(`/api/book/${currentBookId}`);
+                if (br.ok) {
+                  const nb = await br.json();
+                  updateBookUI(nb);
+                }
+              } catch {}
+            }
+          } else if (sr.status === 404 && currentBookId) {
+            // Job умер (например, рестарт сервера) — проверяем, есть ли другой
+            try {
+              const bj = await fetch(`/api/book/${currentBookId}/job`);
+              if (bj.ok) {
+                const bd = await bj.json();
+                if (bd.job && bd.job.state === 'running') {
+                  currentJobId = bd.job.id;
+                } else {
+                  stopBackgroundRefresh();
+                }
+              }
+            } catch {}
+          }
+        } catch {}
+      }
+    } catch (e) { console.error('poll error:', e); }
+  }, 2000);
+  modelSelect.disabled = true;
+  updateTranslateButton();
+}
+
+function stopBackgroundRefresh() {
+  if (backgroundPollTimer) { clearInterval(backgroundPollTimer); backgroundPollTimer = null; }
+  if (availableModels.length) modelSelect.disabled = false;
+  updateTranslateButton();
+}
+
+function updateBookUI(newBook) {
+  if (!bookCache) { bookCache = newBook; return; }
+  let changed = false;
+  for (const newP of newBook.paragraphs) {
+    const oldP = bookCache.paragraphs[newP.index];
+    if (!oldP) continue;
+    if (paragraphState(oldP) !== paragraphState(newP) || oldP.model !== newP.model) {
+      const el = renderedParagraphs[newP.index];
+      if (el) fillParagraphElement(el, newP);
+      changed = true;
+    }
+  }
+  bookCache = newBook;
+  if (changed) scheduleRepaginate();
+  updateProgressInline(newBook);
+  updateReaderBanner(newBook);
+  updateTranslateButton();
+  updateVersionBadge();
+}
+
+function updateProgressInline(book) {
+  const ready = book.paragraphs.filter(p => p.translation).length;
+  const total = book.paragraphs.length;
+  const allProcessed = book.paragraphs.every(p => p.translation || p.error);
+  if (allProcessed) { progressInline.style.display = 'none'; return; }
+  progressInline.style.display = 'inline-flex';
+  progressInlineLabel.textContent = `${ready} / ${total}`;
+  progressInlineFill.style.width = (total ? (ready / total) * 100 : 0) + '%';
+}
+
+function updateReaderBanner(book) {
+  const anyReady = book.paragraphs.some(p => p.translation);
+  if (anyReady) { readerBanner.style.display = 'none'; return; }
+  if (backgroundPollTimer) {
+    readerBanner.style.display = 'flex';
+    readerBanner.innerHTML =
+      '<span class="loader"></span>' +
+      '<span>Готовим текст… Перевод появится здесь, как только модель обработает первые абзацы.</span>';
+  } else {
+    readerBanner.style.display = 'flex';
+    readerBanner.innerHTML =
+      '<span>Версия «' + escapeHtml(book.active_model) + '» ещё не переведена. Нажмите «Перевести», чтобы запустить.</span>';
+  }
+}
+
+async function retryParagraph(index) {
+  const r = await fetch(`/api/retry/${currentBookId}/${index}`, { method: 'POST' });
+  const data = await r.json();
+  if (data.error) { alert(data.error); return; }
+  if (bookCache) {
+    const p = bookCache.paragraphs[index];
+    if (p) { p.translation = null; p.error = null; p.model = null; }
+  }
+  const el = renderedParagraphs[index];
+  if (el && bookCache) fillParagraphElement(el, bookCache.paragraphs[index]);
+  scheduleRepaginate();
+  currentJobId = data.job_id;
+  startBackgroundRefresh();
+}
+
+/* ---------- MODE ---------- */
+document.querySelectorAll('.mode-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.body.dataset.mode = btn.dataset.mode;
+    document.querySelectorAll('.mode-btn').forEach(b =>
+      b.classList.toggle('active', b === btn));
+    applyPage(false);
+  });
+});
+
+backBtn.addEventListener('click', () => {
+  stopBackgroundRefresh();
+  if (chatAbortController) { try { chatAbortController.abort(); } catch {} }
+  showView(uploadView);
+  loadRecent();
+});
+
+function updateContextLabel() {
+  chatContext.innerHTML = `Контекст: <strong>абзац ${currentContextIndex + 1}</strong>`;
+}
+
+/* ---------- SELECTION ---------- */
+function initSelectionHandler() {
+  readerEl.addEventListener('mouseup', handleSelection);
+  readerEl.addEventListener('touchend', () => setTimeout(handleSelection, 60), { passive: true });
+  document.addEventListener('mousedown', e => {
+    if (!floatingActions.contains(e.target)) hideFloating();
+  });
+  readerScroll.addEventListener('scroll', hideFloating, { passive: true });
+}
+
+function handleSelection() {
+  setTimeout(() => {
+    const sel = window.getSelection();
+    if (!sel || sel.isCollapsed) { hideFloating(); return; }
+    const text = sel.toString().trim();
+    if (!text || text.length < 2) { hideFloating(); return; }
+    if (!readerEl.contains(sel.anchorNode) || !readerEl.contains(sel.focusNode)) {
+      hideFloating(); return;
+    }
+    const range = sel.getRangeAt(0);
+    const rect = range.getBoundingClientRect();
+    if (rect.width === 0 && rect.height === 0) { hideFloating(); return; }
+    showFloating(rect, text);
+  }, 10);
+}
+
+function showFloating(rect, text) {
+  floatingActions.dataset.text = text;
+  floatingActions.classList.add('visible');
+  const btnW = floatingActions.offsetWidth;
+  const btnH = floatingActions.offsetHeight;
+  let left = rect.left + rect.width / 2 - btnW / 2;
+  let top  = rect.top - btnH - 10;
+  if (top < 8) top = rect.bottom + 10;
+  if (left < 8) left = 8;
+  if (left + btnW > window.innerWidth - 8) left = window.innerWidth - btnW - 8;
+  floatingActions.style.left = left + 'px';
+  floatingActions.style.top  = top + 'px';
+}
+
+function hideFloating() { floatingActions.classList.remove('visible'); }
+
+btnExplain.addEventListener('click', e => {
+  e.preventDefault(); e.stopPropagation();
+  const text = floatingActions.dataset.text;
+  hideFloating();
+  if (text) requireTranslation(text);
+});
+
+btnAddVocab.addEventListener('click', e => {
+  e.preventDefault(); e.stopPropagation();
+  const text = floatingActions.dataset.text;
+  hideFloating();
+  if (text) addToVocab(text);
+  window.getSelection()?.removeAllRanges();
+});
+
+function requireTranslation(text) {
+  if (!currentBookId) return;
+  pendingSelection = text;
+  openChat();
+  chatInput.value = `Переведи дословно и объясни: «${text}»`;
+  if (!chatBusy) chatSend.disabled = false;
+  chatInput.focus();
+  setTimeout(() => sendChat(), 120);
+  window.getSelection()?.removeAllRanges();
+}
+
+/* ---------- CHAT ---------- */
+function openChat() {
+  document.body.classList.add('chat-open');
+  updateContextLabel();
+  setTimeout(() => chatInput.focus(), 250);
+}
+function closeChat() { document.body.classList.remove('chat-open'); }
+chatToggle.addEventListener('click', () => {
+  if (document.body.classList.contains('chat-open')) closeChat();
+  else openChat();
+});
+chatClose.addEventListener('click', closeChat);
+
+function setChatSending(sending) {
+  chatBusy = sending;
+  if (sending) {
+    chatSend.textContent = '■';
+    chatSend.classList.add('stop');
+    chatSend.disabled = false;
+    chatSend.title = 'Остановить';
+  } else {
+    chatSend.textContent = '→';
+    chatSend.classList.remove('stop');
+    chatSend.disabled = !chatInput.value.trim();
+    chatSend.title = '';
+  }
+}
+
+chatInput.addEventListener('input', () => {
+  if (!chatBusy) chatSend.disabled = !chatInput.value.trim();
+});
+chatInput.addEventListener('keydown', e => {
+  if (e.key === 'Enter' && !e.shiftKey) {
+    e.preventDefault();
+    if (!chatBusy && chatInput.value.trim()) sendChat();
+  }
+});
+chatSend.addEventListener('click', () => {
+  if (chatBusy) {
+    if (chatAbortController) { try { chatAbortController.abort(); } catch {} }
+  } else {
+    sendChat();
+  }
+});
+
+function appendMessage(role, text) {
+  const empty = chatMessages.querySelector('.chat-empty');
+  if (empty) empty.remove();
+  const el = document.createElement('div');
+  el.className = 'chat-msg ' + role;
+  el.textContent = text;
+  chatMessages.appendChild(el);
+  chatMessages.scrollTop = chatMessages.scrollHeight;
+  return el;
+}
+
+async function sendChat() {
+  const text = chatInput.value.trim();
+  if (!text || chatBusy || !currentBookId) return;
+  const selected = pendingSelection;
+  pendingSelection = null;
+  chatInput.value = '';
+  setChatSending(true);
+
+  chatAbortController = new AbortController();
+  const signal = chatAbortController.signal;
+
+  appendMessage('user', text);
+  const assistantEl = appendMessage('assistant', '');
+  assistantEl.classList.add('thinking');
+
+  let answer = '';
+  let aborted = false;
+
+  try {
+    const r = await fetch(`/api/chat/${currentBookId}`, {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({
+        message: text,
+        context_index: currentContextIndex,
+        history: chatHistory,
+        selected_text: selected,
+      }),
+      signal,
+    });
+    if (!r.ok) {
+      const err = await r.json().catch(() => ({}));
+      throw new Error(err.error || 'chat failed');
+    }
+    const reader = r.body.getReader();
+    const decoder = new TextDecoder();
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      answer += decoder.decode(value, { stream: true });
+      assistantEl.textContent = answer;
+      chatMessages.scrollTop = chatMessages.scrollHeight;
+    }
+    assistantEl.classList.remove('thinking');
+  } catch (e) {
+    assistantEl.classList.remove('thinking');
+    if (e.name === 'AbortError') {
+      aborted = true;
+    } else {
+      assistantEl.textContent = '⚠ ' + e.message;
+      setChatSending(false);
+      return;
+    }
+  }
+
+  if (aborted) {
+    assistantEl.textContent = answer || '';
+    const note = document.createElement('span');
+    note.className = 'chat-stopped';
+    note.textContent = '[остановлено]';
+    assistantEl.appendChild(note);
+    chatHistory.push({ role: 'user', content: text });
+    if (answer) chatHistory.push({ role: 'assistant', content: answer + ' [ответ прерван пользователем]' });
+  } else {
+    chatHistory.push({ role: 'user', content: text });
+    chatHistory.push({ role: 'assistant', content: answer });
+  }
+  if (chatHistory.length > 10) chatHistory = chatHistory.slice(-10);
+
+  chatAbortController = null;
+  setChatSending(false);
+}
+
+/* ---------- VOCAB UI ---------- */
+vocabToggle.addEventListener('click', openVocabModal);
+vocabClose.addEventListener('click', closeVocabModal);
+vocabModal.addEventListener('click', e => {
+  if (e.target === vocabModal) closeVocabModal();
+});
+btnVocabClear.addEventListener('click', clearVocab);
+btnAnkiGenerate.addEventListener('click', generateAnki);
+
+versionsClose.addEventListener('click', closeVersionsModal);
+versionsModal.addEventListener('click', e => {
+  if (e.target === versionsModal) closeVersionsModal();
+});
+
+/* ---------- INIT ---------- */
+loadVocab();
+renderVocabList();
+initSelectionHandler();
+loadConfig();
+loadModels();
+loadRecent();
+</script>
+</body>
+</html>
