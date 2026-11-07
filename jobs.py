@@ -134,11 +134,19 @@ def _run(job_id: str, book_id: str, model: str):
             result = engine.translate_paragraph(book, target["chunk"],
                                                 model=model, debug=False)
 
-            target["original"] = result.get("original") or target["chunk"]
+            # ИГНОРИРУЕМ то, что модель написала в <original>. 
+            # Мы ЖЕСТКО берем оригинал из файла (target["chunk"]).
+            target["original"] = target["chunk"]
             target["translation"] = result.get("translation")
             target["comment"] = result.get("comment")
             target["error"] = result.get("error")
             target["model"] = result.get("model") or model
+
+            # Защищаемся от галлюцинаций модели в контексте для следующего абзаца:
+            # Если модель вернула кривой <original>, подменяем его на чистый chunk,
+            # чтобы следующая итерация не получала русский текст на вход.
+            book["last_original"] = target["chunk"]
+            book["last_translation"] = target["translation"]
 
             save_book(book)
 

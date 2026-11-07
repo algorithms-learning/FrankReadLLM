@@ -1,6 +1,9 @@
 # FrankReadLLM
 An intelligent, open-source reading platform that automates the Ilya Frank Reading Method using local, lightweight LLMs.
 
+<img width="1280" height="720" alt="2026-11-07-17-20-03" src="https://github.com/user-attachments/assets/2297f655-0c3b-4186-9876-4358e76d7554" />
+
+
 # Запуск приложения
 
 ### 1. Запуск контейнера
